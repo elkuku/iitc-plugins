@@ -31,7 +31,7 @@ function wrapper(plugin_info) {
 
   // The entry point for this plugin.
   function setup() {
-    alert('Hello, IITC!');
+    alert('Hello, IITC KuKu!!');
   }
 
   // Add an info property for IITC's plugin system
