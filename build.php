@@ -41,17 +41,17 @@ foreach ($repos as $repo) {
     }
 
     $plugins[] = [
-        'repo'              => $repo,
-        'name'              => $data['name']              ?? $repo,
-        'description'       => $data['description']       ?? '',
-        'category'          => $data['category']          ?? 'Misc',
-        'version'           => $data['version']           ?? null,
-        'download_url'      => $data['download_url']      ?? null,
-        'published_at'      => $data['published_at']      ?? null,
-        'beta_version'      => $data['beta_version']      ?? null,
-        'beta_download_url' => $data['beta_download_url'] ?? null,
-        'beta_published_at' => $data['beta_published_at'] ?? null,
-        'homepage'          => sprintf('https://%s.github.io/%s/', GITHUB_USER, $repo),
+        'repo'            => $repo,
+        'name'            => str_replace('IITC plugin: ', '', $data['name'] ?? $repo),
+        'description'     => $data['description']     ?? '',
+        'category'        => $data['category']        ?? 'Misc',
+        'version'         => $data['version']         ?? null,
+        'downloadURL'     => $data['downloadURL']     ?? null,
+        'publishedAt'     => $data['publishedAt']     ?? null,
+        'betaVersion'     => $data['betaVersion']     ?? null,
+        'betaDownloadURL' => $data['betaDownloadURL'] ?? null,
+        'betaPublishedAt' => $data['betaPublishedAt'] ?? null,
+        'homepage'        => sprintf('https://%s.github.io/%s/', GITHUB_USER, $repo),
     ];
 }
 
@@ -130,9 +130,9 @@ function renderCard(array $p): string
     $stableBlock = '';
     if ($p['version'] !== null) {
         $version  = htmlspecialchars($p['version']);
-        $date     = $p['published_at'] ? '<span class="date">' . htmlspecialchars($p['published_at']) . '</span>' : '';
-        $dlBtn    = $p['download_url']
-            ? '<a class="btn btn-install" href="' . htmlspecialchars($p['download_url']) . '" title="Install stable version">Install</a>'
+        $date     = $p['publishedAt'] ? '<span class="date">' . htmlspecialchars($p['publishedAt']) . '</span>' : '';
+        $dlBtn    = $p['downloadURL']
+            ? '<a class="btn btn-install" href="' . htmlspecialchars($p['downloadURL']) . '" title="Install stable version">Install</a>'
             : '';
         $stableBlock = <<<HTML
         <div class="release stable">
@@ -143,11 +143,11 @@ function renderCard(array $p): string
     }
 
     $betaBlock = '';
-    if ($p['beta_version'] !== null) {
-        $bVersion = htmlspecialchars($p['beta_version']);
-        $bDate    = $p['beta_published_at'] ? '<span class="date">' . htmlspecialchars($p['beta_published_at']) . '</span>' : '';
-        $bDlBtn   = $p['beta_download_url']
-            ? '<a class="btn btn-beta" href="' . htmlspecialchars($p['beta_download_url']) . '" title="Install beta version">Install beta</a>'
+    if ($p['betaVersion'] !== null) {
+        $bVersion = htmlspecialchars($p['betaVersion']);
+        $bDate    = $p['betaPublishedAt'] ? '<span class="date">' . htmlspecialchars($p['betaPublishedAt']) . '</span>' : '';
+        $bDlBtn   = $p['betaDownloadURL']
+            ? '<a class="btn btn-beta" href="' . htmlspecialchars($p['betaDownloadURL']) . '" title="Install beta version">Install beta</a>'
             : '';
         $betaBlock = <<<HTML
         <div class="release beta">
