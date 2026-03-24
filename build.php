@@ -1,0 +1,458 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+const GITHUB_USER = 'elkuku';
+const PLUGINS_FILE = __DIR__ . '/plugins.txt';
+const OUTPUT_FILE  = __DIR__ . '/docs/index.html';
+const FETCH_TIMEOUT = 10;
+
+// ---------------------------------------------------------------------------
+// Load plugin list
+// ---------------------------------------------------------------------------
+
+$lines = file(PLUGINS_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+if ($lines === false) {
+    fwrite(STDERR, "ERROR: Cannot read " . PLUGINS_FILE . "\n");
+    exit(1);
+}
+
+$repos = array_filter(
+    array_map('trim', $lines),
+    fn(string $l) => $l !== '' && !str_starts_with($l, '#')
+);
+
+// ---------------------------------------------------------------------------
+// Fetch each plugin's metadata
+// ---------------------------------------------------------------------------
+
+$plugins = [];
+$failed  = [];
+
+foreach ($repos as $repo) {
+    $url  = sprintf('https://%s.github.io/%s/plugin.json', GITHUB_USER, $repo);
+    $data = fetchJson($url);
+
+    if ($data === null) {
+        fwrite(STDERR, "  WARN: Failed to fetch {$url}\n");
+        $failed[] = $repo;
+        continue;
+    }
+
+    $plugins[] = [
+        'repo'              => $repo,
+        'name'              => $data['name']              ?? $repo,
+        'description'       => $data['description']       ?? '',
+        'category'          => $data['category']          ?? 'Misc',
+        'version'           => $data['version']           ?? null,
+        'download_url'      => $data['download_url']      ?? null,
+        'published_at'      => $data['published_at']      ?? null,
+        'beta_version'      => $data['beta_version']      ?? null,
+        'beta_download_url' => $data['beta_download_url'] ?? null,
+        'beta_published_at' => $data['beta_published_at'] ?? null,
+        'homepage'          => sprintf('https://%s.github.io/%s/', GITHUB_USER, $repo),
+    ];
+}
+
+// ---------------------------------------------------------------------------
+// Group and sort
+// ---------------------------------------------------------------------------
+
+$grouped = [];
+foreach ($plugins as $plugin) {
+    $grouped[$plugin['category']][] = $plugin;
+}
+
+uksort($grouped, fn($a, $b) => $a === 'Misc' ? 1 : ($b === 'Misc' ? -1 : strcmp($a, $b)));
+
+foreach ($grouped as &$group) {
+    usort($group, fn($a, $b) => strcmp($a['name'], $b['name']));
+}
+unset($group);
+
+// ---------------------------------------------------------------------------
+// Render HTML
+// ---------------------------------------------------------------------------
+
+$generated = date('Y-m-d H:i') . ' UTC';
+$totalOk   = count($plugins);
+$totalFail = count($failed);
+
+$html = renderPage($grouped, $failed, $generated);
+
+if (!is_dir(dirname(OUTPUT_FILE))) {
+    mkdir(dirname(OUTPUT_FILE), 0755, true);
+}
+
+file_put_contents(OUTPUT_FILE, $html);
+
+echo "Done. {$totalOk} plugin(s) loaded, {$totalFail} failed.\n";
+echo "Output: " . OUTPUT_FILE . "\n";
+
+// ---------------------------------------------------------------------------
+// Functions
+// ---------------------------------------------------------------------------
+
+function fetchJson(string $url): ?array
+{
+    $ctx  = stream_context_create([
+        'http' => [
+            'timeout'       => FETCH_TIMEOUT,
+            'ignore_errors' => true,
+            'header'        => "User-Agent: iitc-plugins-builder/1.0\r\n",
+        ],
+    ]);
+    $body = @file_get_contents($url, false, $ctx);
+
+    if ($body === false) {
+        return null;
+    }
+
+    $status = $http_response_header[0] ?? '';
+    if (!str_contains($status, '200')) {
+        return null;
+    }
+
+    $decoded = json_decode($body, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+function renderCard(array $p): string
+{
+    $name        = htmlspecialchars($p['name']);
+    $desc        = htmlspecialchars($p['description']);
+    $category    = htmlspecialchars($p['category']);
+    $homepage    = htmlspecialchars($p['homepage']);
+    $repo        = htmlspecialchars($p['repo']);
+    $githubUrl   = 'https://github.com/' . GITHUB_USER . '/' . htmlspecialchars($p['repo']);
+
+    $stableBlock = '';
+    if ($p['version'] !== null) {
+        $version  = htmlspecialchars($p['version']);
+        $date     = $p['published_at'] ? '<span class="date">' . htmlspecialchars($p['published_at']) . '</span>' : '';
+        $dlBtn    = $p['download_url']
+            ? '<a class="btn btn-install" href="' . htmlspecialchars($p['download_url']) . '" title="Install stable version">Install</a>'
+            : '';
+        $stableBlock = <<<HTML
+        <div class="release stable">
+          <span class="badge badge-stable">v{$version}</span>{$date}
+          {$dlBtn}
+        </div>
+        HTML;
+    }
+
+    $betaBlock = '';
+    if ($p['beta_version'] !== null) {
+        $bVersion = htmlspecialchars($p['beta_version']);
+        $bDate    = $p['beta_published_at'] ? '<span class="date">' . htmlspecialchars($p['beta_published_at']) . '</span>' : '';
+        $bDlBtn   = $p['beta_download_url']
+            ? '<a class="btn btn-beta" href="' . htmlspecialchars($p['beta_download_url']) . '" title="Install beta version">Install beta</a>'
+            : '';
+        $betaBlock = <<<HTML
+        <div class="release beta">
+          <span class="badge badge-beta">v{$bVersion} beta</span>{$bDate}
+          {$bDlBtn}
+        </div>
+        HTML;
+    }
+
+    $releasesBlock = ($stableBlock || $betaBlock)
+        ? "<div class=\"releases\">{$stableBlock}{$betaBlock}</div>"
+        : '<p class="no-release">No release info available</p>';
+
+    return <<<HTML
+    <div class="plugin-card">
+      <div class="card-header">
+        <h3 class="plugin-name">{$name}</h3>
+        <span class="category-tag">{$category}</span>
+      </div>
+      <p class="plugin-desc">{$desc}</p>
+      {$releasesBlock}
+      <div class="card-links">
+        <a class="link" href="{$homepage}" target="_blank" rel="noopener">Page</a>
+        <a class="link" href="{$githubUrl}" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+    HTML;
+}
+
+function renderFailedCard(string $repo): string
+{
+    $name      = htmlspecialchars($repo);
+    $githubUrl = 'https://github.com/' . GITHUB_USER . '/' . htmlspecialchars($repo);
+
+    return <<<HTML
+    <div class="plugin-card plugin-card--unavailable">
+      <div class="card-header">
+        <h3 class="plugin-name">{$name}</h3>
+        <span class="category-tag">?</span>
+      </div>
+      <p class="plugin-desc unavailable-msg">Metadata currently unavailable.</p>
+      <div class="card-links">
+        <a class="link" href="{$githubUrl}" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+    HTML;
+}
+
+function renderPage(array $grouped, array $failed, string $generated): string
+{
+    $categorySections = '';
+    foreach ($grouped as $category => $plugins) {
+        $catId = htmlspecialchars(strtolower(preg_replace('/\W+/', '-', $category)));
+        $catName = htmlspecialchars($category);
+        $cards = implode("\n", array_map('renderCard', $plugins));
+        $categorySections .= <<<HTML
+
+        <section class="category-section" id="cat-{$catId}">
+          <h2 class="category-heading">{$catName}</h2>
+          <div class="plugin-grid">
+            {$cards}
+          </div>
+        </section>
+        HTML;
+    }
+
+    if (!empty($failed)) {
+        $failedCards = implode("\n", array_map('renderFailedCard', $failed));
+        $categorySections .= <<<HTML
+
+        <section class="category-section" id="cat-unavailable">
+          <h2 class="category-heading">Unavailable</h2>
+          <div class="plugin-grid">
+            {$failedCards}
+          </div>
+        </section>
+        HTML;
+    }
+
+    $css = getStyles();
+
+    return <<<HTML
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>KuKu's IITC Plugins</title>
+      <style>{$css}</style>
+    </head>
+    <body>
+      <header class="site-header">
+        <div class="container">
+          <h1>KuKu's IITC Plugins</h1>
+          <p class="tagline">A collection of plugins for <a href="https://iitc.app" target="_blank" rel="noopener">Ingress Intel Total Conversion</a></p>
+          <a class="gh-link" href="https://github.com/elkuku" target="_blank" rel="noopener">github.com/elkuku</a>
+        </div>
+      </header>
+
+      <main class="container">
+        {$categorySections}
+      </main>
+
+      <footer class="site-footer">
+        <div class="container">
+          <p>Generated: {$generated} &mdash; <a href="https://github.com/elkuku/iitc-plugins" target="_blank" rel="noopener">Source</a></p>
+        </div>
+      </footer>
+    </body>
+    </html>
+    HTML;
+}
+
+function getStyles(): string
+{
+    return <<<CSS
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #1a1a14;
+      --bg-card:     #22221a;
+      --bg-card-alt: #1e1e17;
+      --text:        #d4c87a;
+      --text-muted:  #8a8060;
+      --accent:      #e2c532;
+      --teal:        #00ffbb;
+      --teal-dim:    #00cc96;
+      --red:         #ff6b6b;
+      --border:      rgba(226, 197, 50, 0.18);
+      --border-hover:rgba(226, 197, 50, 0.55);
+      --radius:      6px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    a { color: var(--teal); text-decoration: none; }
+    a:hover { text-decoration: underline; color: var(--teal-dim); }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+    }
+
+    /* Header */
+    .site-header {
+      border-bottom: 1px solid var(--border);
+      padding: 2.5rem 0 2rem;
+      margin-bottom: 2.5rem;
+    }
+    .site-header h1 {
+      font-size: 2rem;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+      margin-bottom: 0.35rem;
+    }
+    .tagline { color: var(--text-muted); margin-bottom: 0.75rem; }
+    .gh-link {
+      display: inline-block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.2rem 0.6rem;
+      border-radius: var(--radius);
+    }
+    .gh-link:hover { color: var(--teal); border-color: var(--teal); text-decoration: none; }
+
+    /* Category sections */
+    .category-section { margin-bottom: 3rem; }
+    .category-heading {
+      font-size: 1.15rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    /* Plugin grid */
+    .plugin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+
+    /* Plugin card */
+    .plugin-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      transition: border-color 0.15s;
+    }
+    .plugin-card:hover { border-color: var(--border-hover); }
+    .plugin-card--unavailable { opacity: 0.45; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .plugin-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent);
+      flex: 1;
+    }
+    .category-tag {
+      font-size: 0.7rem;
+      background: rgba(226,197,50,0.1);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.45rem;
+      border-radius: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .plugin-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      flex: 1;
+    }
+    .unavailable-msg { font-style: italic; }
+
+    /* Releases */
+    .releases { display: flex; flex-direction: column; gap: 0.4rem; }
+    .release {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+    }
+    .badge-stable {
+      background: rgba(0,255,187,0.12);
+      color: var(--teal);
+      border: 1px solid rgba(0,255,187,0.3);
+    }
+    .badge-beta {
+      background: rgba(226,197,50,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(226,197,50,0.3);
+    }
+    .date { font-size: 0.75rem; color: var(--text-muted); }
+
+    .btn {
+      font-size: 0.78rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 3px;
+      border: 1px solid;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.8; text-decoration: none; }
+    .btn-install {
+      color: var(--teal);
+      border-color: rgba(0,255,187,0.4);
+      background: rgba(0,255,187,0.06);
+    }
+    .btn-beta {
+      color: var(--accent);
+      border-color: rgba(226,197,50,0.35);
+      background: rgba(226,197,50,0.06);
+    }
+
+    .no-release { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+
+    /* Card links */
+    .card-links {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.8rem;
+      margin-top: auto;
+      padding-top: 0.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Footer */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 0;
+      margin-top: 3rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    CSS;
+}

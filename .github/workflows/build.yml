@@ -1,0 +1,34 @@
+name: Build Plugin Index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins.txt'
+      - 'build.php'
+  schedule:
+    - cron: '0 6 * * *'   # Daily rebuild — picks up version bumps in plugin repos
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      - name: Run build script
+        run: php build.php
+
+      - name: Commit updated index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --staged --quiet || git commit -m "chore: rebuild plugin index [skip ci]"
+          git push
