@@ -1,15 +1,15 @@
 # elkuku IITC Plugins
 # One repository name per line. Lines starting with # are comments.
 
-iitc-kuku-bookmarks
-iitc-kuku-drawtools
+#iitc-kuku-bookmarks
+#iitc-kuku-drawtools
 iitc-kuku-export
 iitc-kuku-inventory
-iitc-kuku-missionary
+#iitc-kuku-missionary
 iitc-kuku-set-zoom-portals
-iitc-kuku-sidebar-organizer
-iitc-kuku-sync
+#iitc-kuku-sidebar-organizer
+#iitc-kuku-sync
 iitc-kuku-team-inventory
 iitc-helper-handlebars
-iitc-kuku-helper-fontawesome
+#iitc-kuku-helper-fontawesome
 iitc-theme-chooser
