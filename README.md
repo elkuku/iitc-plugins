@@ -1,8 +1,6 @@
 # KuKu's IITC Plugins
 
-Index page for [elkuku's IITC plugins](https://iitc.app).
-
-**Live site:** https://elkuku.github.io/iitc-plugins/
+Index page for [elkuku's IITC plugins](https://elkuku.github.io/iitc-plugins/).
 
 ## How it works
 
