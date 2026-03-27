@@ -13,3 +13,4 @@ iitc-kuku-team-inventory
 iitc-kuku-helper-handlebars
 #iitc-kuku-helper-fontawesome
 iitc-theme-chooser
+iitc-kuku-local-storage-editor

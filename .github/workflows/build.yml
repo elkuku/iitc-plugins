@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'plugins.txt'
-      - 'build.php'
+      - 'build.js'
+      - 'src/template.html'
+      - 'src/style.css'
   schedule:
     - cron: '0 6 * * *'   # Daily rebuild — picks up version bumps in plugin repos
   workflow_dispatch:
@@ -14,23 +16,35 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          php-version: '8.3'
+          node-version: '22'
 
       - name: Run build script
-        run: php build.php
+        run: node build.js
 
-      - name: Commit updated index
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html
-          git diff --staged --quiet || git commit -m "chore: rebuild plugin index [skip ci]"
-          git push
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

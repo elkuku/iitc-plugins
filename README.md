@@ -6,9 +6,9 @@ Index page for [elkuku's IITC plugins](https://iitc.app).
 
 ## How it works
 
-`plugins.txt` lists the repository names of all plugins. A PHP build script (`build.php`) fetches `plugin.json` from each plugin's GitHub Pages URL and generates a static `docs/index.html`. GitHub Pages serves the result.
+`plugins.txt` lists the repository names of all plugins. A Node.js build script (`build.js`) fetches `plugin.json` from each plugin's GitHub Pages URL and generates a static `dist/index.html` from `src/template.html` and `src/style.css`. The `dist/` folder is gitignored and published to GitHub Pages via the Actions deployment workflow.
 
-The index is rebuilt automatically every day and on any push that changes `plugins.txt` or `build.php`.
+The index is rebuilt automatically every day and on any push that changes `plugins.txt`, `build.js`, `src/template.html`, or `src/style.css`.
 
 ## Adding a plugin
 
@@ -36,7 +36,7 @@ Beta fields are optional.
 ## Building locally
 
 ```bash
-php build.php
+node build.js
 ```
 
-Output is written to `docs/index.html`.
+Output is written to `dist/` (gitignored).
