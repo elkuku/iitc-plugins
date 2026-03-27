@@ -96,13 +96,22 @@ function renderCard(p) {
     ? `<div class="releases">${stableBlock}${betaBlock}</div>`
     : '<p class="no-release">No release info available</p>';
 
+  const iconHtml = p.icon
+    ? `<img class="plugin-icon" src="${esc(p.icon)}" alt="" aria-hidden="true">`
+    : '';
+  const minimizeNote = p.minimize
+    ? `<span class="badge badge-minimized">Minimized</span>`
+    : '';
+
   return `
     <div class="plugin-card">
       <div class="card-header">
+        ${iconHtml}
         <h3 class="plugin-name">${esc(p.name)}</h3>
         <span class="category-tag">${esc(p.category)}</span>
       </div>
       <p class="plugin-desc">${esc(p.description)}</p>
+      ${minimizeNote}
       ${releasesBlock}
       <div class="card-links">
         <a class="link" href="${esc(p.homepage)}" target="_blank" rel="noopener">Page</a>
@@ -180,6 +189,8 @@ async function main() {
       name:            (data.name ?? repo).replace('IITC plugin: ', ''),
       description:     data.description     ?? '',
       category:        data.category        ?? 'Misc',
+      icon:            data.icon            ?? null,
+      minimize:        data.minimize        ?? false,
       version:         data.version         ?? null,
       downloadURL:     data.downloadURL      ?? null,
       publishedAt:     data.publishedAt      ?? null,
